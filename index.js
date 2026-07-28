@@ -36,6 +36,12 @@ async function run() {
         res.send(result);
         // console.log(result);
     })
+    app.get('/featured', async (req, res) => {
+        const cursor = ideasCollection.find().limit(4);
+        const result = await cursor.toArray();
+        res.send(result);
+        // console.log(result);
+    })
     app.get('/ideas/:ideaId', async (req, res) => {
         const { ideaId } = req.params;
         const idea = await ideasCollection.findOne({ _id: new ObjectId(ideaId) });
