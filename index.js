@@ -5,7 +5,7 @@ const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
-
+// const { ObjectId } = require("mongodb");
 dotenv.config();
 const app = express();
 const port = process.env.PORT || 5000;
@@ -40,17 +40,54 @@ async function connectDB() {
 connectDB();
 
 // --- ROUTES ---
-app.get('/categories', async (req, res) => {
-    try {
-        const categories = await ideasCollection.distinct("metadata.category");
-        
-        const cleanCategories = categories.filter(Boolean);
-        
-        res.send(cleanCategories);
-    } catch (error) {
-        console.error("Error fetching categories:", error);
-        res.status(500).send({ error: "Failed to fetch categories" });
+
+app.patch("/ideas/:id/bookmark", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId } = req.body;
+
+    if (!userId) {
+      return res
+        .status(400)
+        .send({ error: "userId is required in the request body" });
     }
+    const query = { _id: new ObjectId(id) };
+    const idea = await ideasCollection.findOne(query);
+
+    if (!idea) {
+      return res.status(404).send({ error: "Idea not found" });
+    }
+
+    const bookmarks = idea.bookmarks || [];
+    const isBookmarked = bookmarks.includes(userId);
+
+    const updateDoc = isBookmarked
+      ? { $pull: { bookmarks: userId } }
+      : { $addToSet: { bookmarks: userId } };
+    await ideasCollection.updateOne(query, updateDoc);
+
+    res.send({
+      success: true,
+      message: isBookmarked ? "Bookmark removed" : "Bookmarked successfully",
+      isBookmarked: !isBookmarked,
+    });
+  } catch (error) {
+    console.error("Error toggling bookmark:", error);
+    res.status(500).send({ error: "Failed to update bookmark" });
+  }
+});
+
+app.get("/categories", async (req, res) => {
+  try {
+    const categories = await ideasCollection.distinct("metadata.category");
+
+    const cleanCategories = categories.filter(Boolean);
+
+    res.send(cleanCategories);
+  } catch (error) {
+    console.error("Error fetching categories:", error);
+    res.status(500).send({ error: "Failed to fetch categories" });
+  }
 });
 
 app.get("/ideas", async (req, res) => {
@@ -88,21 +125,16 @@ app.get("/ideas", async (req, res) => {
   }
 });
 
-
 app.post("/ideas", async (req, res) => {
   try {
     const newIdea = req.body;
-    newIdea.createdAt = new Date().toISOString();
     const result = await ideasCollection.insertOne(newIdea);
     res.status(201).send(result);
-  }
-  catch (error) {
+  } catch (error) {
     console.error("Error adding new idea:", error);
     res.status(500).send({ error: "Failed to add new idea" });
   }
-})
-
-
+});
 
 app.get("/featured", async (req, res) => {
   const cursor = ideasCollection.find().limit(4);
