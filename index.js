@@ -17,10 +17,22 @@ app.use(cookieParser());
 // Middleware
 app.use(express.json());
 
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+  process.env.BETTER_AUTH_URL,
+  "http://localhost:3000",
+].filter(Boolean);
+
 app.use(
   cors({
-    origin: process.env.CLIENT_URL, // e.g., "http://localhost:3000"
-    credentials: true, 
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+      callback(new Error(`CORS blocked for origin: ${origin}`));
+    },
+    credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
     allowedHeaders: ["Content-Type", "Authorization"],
   }),
@@ -64,9 +76,17 @@ const verifyToken = async (req, res, next) => {
 
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith("Bearer ")) {
-    token = authHeader.split(" ")[1];
-  } else if (req.cookies) {
-    token = req.cookies["better-auth.session_data"];
+    const candidate = authHeader.split(" ")[1];
+    if (candidate && candidate.trim()) {
+      token = candidate.trim();
+    }
+  }
+  if (!token && req.cookies) {
+    // better-auth stores the JWT as 'better-auth.session_token'
+    token =
+      req.cookies["better-auth.session_token"] ||
+      req.cookies["better-auth.session_data"] ||
+      null;
   }
 
   if (!token) {
@@ -401,13 +421,7 @@ app.get("/categories", async (req, res) => {
   }
 });
 
-app.get("/ideas",verifyToken, async (req, res) => {
-  const header = req.headers.authorization;
-  console.log("Authorization header:", header);
-  if (!header) {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
-
+app.get("/ideas", async (req, res) => {
   try {
     const { search, category, time } = req.query;
     let query = {};
@@ -477,7 +491,7 @@ app.get("/featured", async (req, res) => {
   res.send(result);
 });
 
-app.get("/ideas/:ideaId",verifyToken, async (req, res) => {
+app.get("/ideas/:ideaId", async (req, res) => {
   const { ideaId } = req.params;
   const idea = await ideasCollection.findOne({ _id: new ObjectId(ideaId) });
   if (!idea) {
