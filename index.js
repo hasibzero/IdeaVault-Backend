@@ -82,7 +82,6 @@ const verifyToken = async (req, res, next) => {
     }
   }
   if (!token && req.cookies) {
-    // better-auth stores the JWT as 'better-auth.session_token'
     token =
       req.cookies["better-auth.session_token"] ||
       req.cookies["better-auth.session_data"] ||
@@ -94,18 +93,22 @@ const verifyToken = async (req, res, next) => {
   }
 
   try {
-    const secretString = process.env.BETTER_AUTH_SECRET;
+    let payload;
 
-
-    if (!secretString) {
-      console.error(
-        "CRITICAL: BETTER_AUTH_SECRET is missing from backend environment!",
-      );
-      return res.status(500).json({ message: "Server configuration error" });
+    // Try RS256 via JWKS first — this is what better-auth's jwt() plugin uses
+    try {
+      const { payload: p } = await jwtVerify(token, JWKS);
+      payload = p;
+    } catch {
+      // Fallback: HS256 with secret (for session cookie JWTs)
+      if (!process.env.BETTER_AUTH_SECRET) {
+        console.error("CRITICAL: BETTER_AUTH_SECRET is missing from backend environment!");
+        return res.status(500).json({ message: "Server configuration error" });
+      }
+      const secret = new TextEncoder().encode(process.env.BETTER_AUTH_SECRET);
+      const { payload: p } = await jwtVerify(token, secret);
+      payload = p;
     }
-
-    const secret = new TextEncoder().encode(secretString);
-    const { payload } = await jwtVerify(token, secret);
 
     req.auth = payload;
     next();
