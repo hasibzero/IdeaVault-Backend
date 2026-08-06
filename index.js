@@ -413,9 +413,14 @@ app.get("/ideas/interactions/my", verifyToken, async (req, res) => {
 
 app.get("/categories", async (req, res) => {
   try {
-    const categories = await ideasCollection.distinct("metadata.category");
+    const [metaCats, plainCats, projCats] = await Promise.all([
+      ideasCollection.distinct("metadata.category"),
+      ideasCollection.distinct("category"),
+      ideasCollection.distinct("project.category"),
+    ]);
 
-    const cleanCategories = categories.filter(Boolean);
+    const allCats = [...metaCats, ...plainCats, ...projCats].filter(Boolean);
+    const cleanCategories = Array.from(new Set(allCats)).sort();
 
     res.send(cleanCategories);
   } catch (error) {
@@ -434,7 +439,11 @@ app.get("/ideas", async (req, res) => {
     }
 
     if (category && category !== "All Categories") {
-      query["metadata.category"] = category;
+      query.$or = [
+        { "metadata.category": category },
+        { category: category },
+        { "project.category": category },
+      ];
     }
 
     if (time && time !== "Any Time") {
