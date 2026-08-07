@@ -55,21 +55,34 @@ const JWKS = createRemoteJWKSet(
 
 
 let ideasCollection;
+let dbConnectionPromise = null;
 
-
-async function connectDB() {
+async function ensureDbConnected(req, res, next) {
+  if (ideasCollection) {
+    return next();
+  }
+  if (!dbConnectionPromise) {
+    dbConnectionPromise = client.connect()
+      .then(() => {
+        ideasCollection = client.db("ideavault").collection("ideas");
+        console.log("Successfully connected to MongoDB!");
+      })
+      .catch((err) => {
+        dbConnectionPromise = null;
+        console.error("Failed to connect to MongoDB", err);
+        throw err;
+      });
+  }
+  
   try {
-    await client.connect();
-    ideasCollection = client.db("ideavault").collection("ideas");
-    console.log(
-      "Pinged your deployment. You successfully connected to MongoDB!",
-    );
+    await dbConnectionPromise;
+    next();
   } catch (err) {
-    console.error("Failed to connect to MongoDB", err);
+    res.status(500).json({ error: "Database connection failed" });
   }
 }
-connectDB();
 
+app.use(ensureDbConnected);
 
 const verifyToken = async (req, res, next) => {
   let token;
