@@ -4,10 +4,7 @@ The IdeaVault backend is a fast, flexible, and robust **Node.js & Express.js** R
 
 ---
 
-## 🌐 Live URL
 
-- **Backend API Deployment**: [https://ideavault-server-nu.vercel.app](https://ideavault-server-nu.vercel.app)
-- **Frontend Client**: [https://ideavault-client.vercel.app](https://ideavault-client.vercel.app)
 
 ---
 
