@@ -432,18 +432,27 @@ app.get("/categories", async (req, res) => {
 app.get("/ideas", async (req, res) => {
   try {
     const { search, category, time } = req.query;
-    let query = {};
+    const andConditions = [];
 
-    if (search) {
-      query["project.title"] = { $regex: search, $options: "i" };
+    if (search && search.trim() !== "") {
+      andConditions.push({
+        $or: [
+          { "project.title": { $regex: search, $options: "i" } },
+          { title: { $regex: search, $options: "i" } },
+          { "project.tagline": { $regex: search, $options: "i" } },
+          { tagline: { $regex: search, $options: "i" } },
+        ],
+      });
     }
 
     if (category && category !== "All Categories") {
-      query.$or = [
-        { "metadata.category": category },
-        { category: category },
-        { "project.category": category },
-      ];
+      andConditions.push({
+        $or: [
+          { "metadata.category": category },
+          { category: category },
+          { "project.category": category },
+        ],
+      });
     }
 
     if (time && time !== "Any Time") {
@@ -455,8 +464,15 @@ app.get("/ideas", async (req, res) => {
       if (time === "Past Year")
         pastDate.setFullYear(currentDate.getFullYear() - 1);
 
-      query.createdAt = { $gte: pastDate.toISOString() };
+      andConditions.push({
+        $or: [
+          { createdAt: { $gte: pastDate.toISOString() } },
+          { created_at: { $gte: pastDate.toISOString() } },
+        ],
+      });
     }
+
+    const query = andConditions.length > 0 ? { $and: andConditions } : {};
 
     const cursor = ideasCollection.find(query).sort({ createdAt: -1 });
     const result = await cursor.toArray();
